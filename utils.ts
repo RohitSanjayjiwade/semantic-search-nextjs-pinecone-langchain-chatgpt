@@ -1,6 +1,6 @@
-import { OpenAIEmbeddings } from "langchain/embeddings/openai";
+import { OpenAIEmbeddings } from "@langchain/openai"; 
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { OpenAI } from "langchain/llms/openai";
+import { OpenAI } from "@langchain/openai";
 import { loadQAStuffChain } from "langchain/chains";
 import { Document } from "langchain/document";
 import { timeout } from "./config";
@@ -11,31 +11,46 @@ export const createPineconeIndex = async (
   indexName,
   vectorDimension
 ) => {
-  // 1. Initiate index existence check
-  console.log(`Checking "${indexName}"...`);
-  // 2. Get list of existing indexes
-  const existingIndexes = await client.listIndexes();
-  // 3. If index doesn't exist, create it
-  if (!existingIndexes.includes(indexName)) {
-    // 4. Log index creation initiation
-    console.log(`Creating "${indexName}"...`);
-    // 5. Create index
-    await client.createIndex({
-      createRequest: {
-        name: indexName,
-        dimension: vectorDimension,
-        metric: 'cosine',
-      },
-    });
-    // 6. Log successful creation
+  try {
+    // 1. Initiate index existence check
+    console.log(`Checking "${indexName}"...`);
+    
+    // 2. Get list of existing indexes
+    const existingIndexesResponse = await client.listIndexes();
+    console.log("Existing indexes response:", existingIndexesResponse);
+    
+    // Extract indexes from the response
+    const existingIndexes = existingIndexesResponse.indexes.map(index => index.name);
+
+    // 3. If index doesn't exist, create it
+    if (!existingIndexes.includes(indexName)) {
+      // 4. Log index creation initiation
+      console.log(`Creating "${indexName}"...`);
+      
+      // 5. Create index
+      await client.createIndex({
+        createRequest: {
+          name: indexName,
+          dimension: vectorDimension,
+          metric: 'cosine',
+        },
+      });
+      
+      // 6. Log successful creation
       console.log(`Creating index.... please wait for it to finish initializing.`);
-    // 7. Wait for index initialization
-    await new Promise((resolve) => setTimeout(resolve, timeout));
-  } else {
-    // 8. Log if index already exists
-    console.log(`"${indexName}" already exists.`);
+      
+      // 7. Wait for index initialization
+      await new Promise((resolve) => setTimeout(resolve, timeout));
+    } else {
+      // 8. Log if index already exists
+      console.log(`"${indexName}" already exists.`);
+    }
+  } catch (error) {
+    console.error("Error creating Pinecone index:", error);
+    throw error; // Rethrow the error for the caller to handle
   }
 };
+
 
 
 
@@ -119,8 +134,12 @@ export const queryPineconeVectorStoreAndQueryLLM = async (
   // 2. Retrieve the Pinecone index
   const index = client.Index(indexName);
 
+  console.log("chamn")
+
   // 3. Create query embedding
   const queryEmbedding = await new OpenAIEmbeddings().embedQuery(question)
+
+  console.log("chtya")
 
   // 4. Query Pinecone index and return top 10 matches
   let queryResponse = await index.query({
